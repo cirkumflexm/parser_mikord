@@ -3,6 +3,7 @@ import json
 from bs4 import BeautifulSoup as bs
 import re
 import math
+import csv
 
 headers = {'accept': '*/*',
            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36'
@@ -58,45 +59,72 @@ def parse_json(html_page, session):
 
 def parse_img_save(filename, url):
     file_stream = requests.get(url, stream=True)
-    with open(filename, 'wb') as fd:
+    with open(filename + '.jpg', 'wb') as fd:
         for chunk in file_stream.iter_content(chunk_size=256):
             fd.write(chunk)
 
 
-def save_csv(filename):
-    return filename
+def save_csv(array_product):
+    with open('parsed_mikort.csv', 'a') as file:
+        a_pen = csv.writer(file)
+        a_pen.writerow(('Название', 'Цена', 'Код', 'Ссылки на изображения', 'Поля характеристик', 'Описание'))
+        for product in array_product:
+            a_pen.writerow((product['item_name'], product['item_price'], product['item_kod'], product['item_images'],
+                            product['item_features'], product['item_description']))
 
+
+def parse_img(array_products):
+    for prod in array_products:
+        kod = prod['item_kod'].split(' ')
+        art = 0
+        if kod[2].isdigit():
+            art = kod[2]
+        nom = 0
+        for img in prod['item_images']:
+            nom = nom + 1
+            parse_img_save(str(art) + '_' + str(nom), 'https://www.ural-mart.ru' + img)
 
 def micort_parse(start_url, headers):
     session = requests.Session()
-    print(start_url)
     request = session.get(start_url, headers=headers)
     ready_page = []
     if request.status_code == 200:
         html_page = bs(request.content, 'html.parser')
         ready_page.extend(parse_page(html_page, session))
-        parse_page(html_page, session)
         arr_product = parse_json(html_page, session)    # масив товара в текущей категории
         count_entrys = len(arr_product)  # количество записей
         entry_on_page = 20  # количество записей на странице
         current_page = 1    # текущая страница
         sort_price = 0
         kolvo_page_list = math.ceil(count_entrys / 20)  # кол-во списков страниц
+        '''
         for akt_page in range(1, kolvo_page_list):
             start_entrys = akt_page*entry_on_page
             list_tovar_show = ''
             for akt_entrys in arr_product[start_entrys:start_entrys+20]:
                 list_tovar_show = list_tovar_show + str(akt_entrys['id']) + ','
-            print(list_tovar_show)
             request_page = session.post(start_url, data={"list_tovar_show": list_tovar_show, "sort_price": sort_price},
                                         headers=headers)
             html_page_list = bs(request_page.content, 'html.parser')
             ready_page.extend(parse_page(html_page_list, session))
+        '''
         print(ready_page)
 
     else:
         print('Error')
 
+    return ready_page
 
-micort_parse(start_url, headers)
+
+def main():
+    array = micort_parse(start_url, headers)
+    save_csv(array)
+    parse_img(array)
+
+
+if __name__ == "__main__":
+    main()
+
+
+
 

@@ -12,7 +12,7 @@ headers = {'accept': '*/*',
            }
 site_url = "https://www.ural-mart.ru"
 
-array_url = [ "/production/dlya-elektromehanicheskogo-oborudovaniya/"]
+array_url = []
 
 temp_url = ["/retail/shkafy_dlya_sumok/"]
 
@@ -26,11 +26,10 @@ gut_url = ["/retail/vitrina/", "/retail/prilavki/", "/retail/kassovoe-oborudovan
            "/technologic/prachechnoe-oborudovanie/", "/production/dlya-holodilnogo-oborudovaniya/",
            "/production/dlya-teplovogo-oborudovaniya/", "/production/dlya-nejtralnogo-oborudovaniya/",
            "/production/dlya-linij-razdach/", "/constructions/sendvich-paneli-iz-minvaty/",
-           "/constructions/sendvich-paneli-iz-pur/", "/constructions/sendvich-paneli-iz-pir/",
-           "/constructions/nesemnaya-opalubka/", "/avtomatizaciya-torgovli/", "/technologic/nejtralnoe/",
-           "/technologic/teplovoe-oborudovanie/"]
+             "/constructions/sendvich-paneli-iz-pur/", "/constructions/sendvich-paneli-iz-pir/",
+             "/constructions/nesemnaya-opalubka/", "/avtomatizaciya-torgovli/"]
 
-fail_url = []
+fail_url = ["/technologic/teplovoe-oborudovanie/", "/technologic/nejtralnoe/", "/production/dlya-elektromehanicheskogo-oborudovaniya/",]
 
 def parse_page(html_page, session):
     items_list = html_page.find_all('div', class_="item")
@@ -45,7 +44,6 @@ def parse_page(html_page, session):
         item_kod = item_kod[12:]
         request_in = session.get('https://www.ural-mart.ru' + item_link, headers=headers)
         if request_in.status_code == 200:
-            time.sleep(1)
             print('Парсинг карточки товара' + item_link)
             html_page_in = bs(request_in.content, 'html.parser')
             html_page_product = html_page_in.find('div', class_="product")
@@ -93,13 +91,12 @@ def parse_img_save(filename, url):
             fd.write(chunk)
 
 
-def save_csv(array_product, name_razdel, bool_head):
+def save_csv(array_product, name_razdel):
     with open('parsed_mikort_' + name_razdel + '.csv', 'a', encoding="utf-8") as file:
         a_pen = csv.writer(file)
-        if bool_head:
-            a_pen.writerow(('product_name', 'product_price', 'product_sku', 'product_images', 'product_s_desc',
-                            'product_desc', 'product_length', 'product_height',	'product_width', 'product_weight',
-                            'features'))
+        a_pen.writerow(('product_name', 'product_price', 'product_sku', 'product_images', 'product_s_desc',
+                        'product_desc', 'product_length', 'product_height',	'product_width', 'product_weight',
+                        'features'))
         for product in array_product:
             features_html = '<div class="features">'
             for feature in product['item_features']:
@@ -128,10 +125,6 @@ def save_csv(array_product, name_razdel, bool_head):
 
 
 def parse_img(array_products, name_razdel):
-    if os.path.exists('images/' + name_razdel):
-        print('Каталог сусществует images/' + name_razdel)
-    else:
-        os.mkdir('images/' + name_razdel)
     nom_prod = 0
     for prod in array_products:
         nom = 0
@@ -140,17 +133,16 @@ def parse_img(array_products, name_razdel):
             time.sleep(1)
             parse_img_save(name_razdel + '/' + str(prod['item_kod']) + '_' + str(nom), 'https://www.ural-mart.ru' + img)
             nom = nom + 1
-            print('Из ' + str(len(array_products)) + ' Выполнено ' + str(nom_prod) + '. Из ' + str(len(prod['item_images'])) + ' готово' + str(nom))
+            print('Из ' + len(array_products) + ' Выполнено ' + nom_prod + '. Из ' + len(prod['item_images']) + ' готово' + nom)
 
 
-def micort_parse(start_url, headers, name_razdel, start_page):
+def micort_parse(start_url, headers):
     session = requests.Session()
     request = session.get(start_url, headers=headers)
     ready_page = []
     if request.status_code == 200:
         html_page = bs(request.content, 'html.parser')
-        if start_page == 1:
-            ready_page.extend(parse_page(html_page, session))
+        ready_page.extend(parse_page(html_page, session))
         arr_product = parse_json(html_page, session)    # масив товара в текущей категории
         count_entrys = len(arr_product)  # количество записей
         entry_on_page = 20  # количество записей на странице
@@ -158,7 +150,7 @@ def micort_parse(start_url, headers, name_razdel, start_page):
         sort_price = 0
         kolvo_page_list = math.ceil(count_entrys / 20)  # кол-во списков страниц
 
-        for akt_page in range(start_page, kolvo_page_list):
+        for akt_page in range(1, kolvo_page_list):
             print('Парсинг внутренней списка раздела. Пагинация: ' + str(akt_page))
             time.sleep(3)
             start_entrys = akt_page*entry_on_page
@@ -169,18 +161,7 @@ def micort_parse(start_url, headers, name_razdel, start_page):
                                         headers=headers)
             html_page_list = bs(request_page.content, 'html.parser')
             ready_page.extend(parse_page(html_page_list, session))
-            if akt_page == 10:
-                print('Сохранение CSV до 10 раздела')
-                save_csv(ready_page, name_razdel, True)
-                print('Парсинг изображений раздела. Пагинация достигла 10')
-                parse_img(ready_page, name_razdel)
-                ready_page = []
-            elif akt_page > 10:
-                print('Сохранение CSV до 10 раздела')
-                save_csv(ready_page, name_razdel, False)
-                print('Парсинг изображений раздела. Пагинация более 10')
-                parse_img(ready_page, name_razdel)
-                ready_page = []
+
     else:
         print('Error')
 
@@ -191,13 +172,13 @@ def main():
     for url_one in array_url:
         print('Парсинг нового раздела. Название: ' + url_one)
         name_razdel = url_one.replace('/', '__')
+        os.mkdir('images/' + name_razdel)
         full_addr = site_url + url_one
-        array = micort_parse(full_addr, headers, name_razdel, 11)
-        if len(array) != 0:
-            print('Сохраниение CSV')
-            save_csv(array, name_razdel, True)
-            print('Парсинг изображений раздела.')
-            parse_img(array, name_razdel)
+        array = micort_parse(full_addr, headers)
+        print('Сохраниение CSV')
+        save_csv(array, name_razdel)
+        # print('Парсинг изображений раздела.')
+        # parse_img(array, name_razdel)
         print('Парсинг раздела завершен.')
         time.sleep(40)
 
